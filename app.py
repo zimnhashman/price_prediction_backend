@@ -1,37 +1,56 @@
 from flask import Flask, request, jsonify
 import torch
+from torch import nn
 import numpy as np
-from datetime import datetime
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
+# Initialize Flask app
 app = Flask(__name__)
 
-# Load the trained PyTorch model
-model = torch.load('trained_model.pkl')
-model.eval()
-
-# API endpoint to receive input data
-@app.route('/predict', methods=['POST'])
-def predict():
-    # Get input data from the request
-    data = request.get_json()
-    date_str = data['date']
-
-    # Parse the date string into a datetime object
-    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-
-    # Preprocess input data (if needed)
-    # For example, convert the date to a numerical representation
-
-    # Make prediction using the model
-    # For demonstration, let's assume the model predicts based on the year part of the date
-    year = date_obj.year
-    input_data = np.array([[year]], dtype=np.float32)
-    prediction = model(torch.from_numpy(input_data)).item()
-
-    # Prepare the response
-    response = {'prediction': prediction}
-
-    return jsonify(response)
-
+# Run the Flask server (assuming your trained model is in 'trained_model.pkl')
 if __name__ == '__main__':
     app.run(debug=True)
+
+# Define your PyTorch model architecture (same as your training script)
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super(NeuralNetwork, self).__init__()
+        self.fc1 = nn.Linear(1, 10)
+        self.fc2 = nn.Linear(10, 1)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+# Load the trained PyTorch model
+model = NeuralNetwork()
+model.load_state_dict(torch.load('model/trained_model.pkl'))
+model.eval()  # Set the model to evaluation mode
+
+# Create a scaler for normalization (if your data requires it)
+scaler = MinMaxScaler(feature_range=(0, 1))  # Assuming min-max normalization
+
+
+# Define route for prediction
+@app.route('/predict', methods=['POST'])
+def predict(app):
+    data = request.json  # Assuming JSON data like {'feature': value}
+
+    # Preprocess the input data (adjust based on your data format)
+    feature = data['feature']  # Replace 'feature' with the actual key in your JSON
+    normalized_feature = scaler.transform(np.array([[feature]]))  # Normalize if needed
+
+    # Convert normalized data to PyTorch tensor
+    input_tensor = torch.tensor(normalized_feature, dtype=torch.float32)
+
+    # Make prediction using the loaded model
+    with torch.no_grad():
+        prediction = model(input_tensor).item()
+
+    # Denormalize the prediction if needed
+    # prediction = scaler.inverse_transform(np.array([[prediction]]))
+
+    # Return the prediction as JSON response
+    return jsonify({'prediction': prediction})
